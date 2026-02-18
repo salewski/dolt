@@ -705,7 +705,10 @@ func execShell(sqlCtx *sql.Context, qryist cli.Queryist, format engine.PrintResu
 	_ = iohelp.WriteLine(cli.CliOut, welcomeMsg)
 	historyFile := filepath.Join(".sqlhistory") // history file written to working dir
 
-	db, branch, _ := getDBBranchFromSession(sqlCtx, qryist)
+	db, branch, ok := getDBBranchFromSession(sqlCtx, qryist)
+	if !ok {
+		return fmt.Errorf("Warning: unable to determine database branch from session")
+	}
 	dirty := false
 	if branch != "" {
 		dirty, _ = isDirty(sqlCtx, qryist)
