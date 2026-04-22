@@ -469,8 +469,13 @@ CREATE TABLE products (
     PRIMARY KEY (id)
 );
 SQL
+    run dolt table import -c -s varchar-sch.sql products `batshelper bad-utf8-varchar.csv`
+    [ "$status" -ne 0 ]
+    [[ "$output" =~ "incorrect value for column" ]] || false
     run dolt table import -c -s varchar-sch.sql --continue products `batshelper bad-utf8-varchar.csv`
     [ "$status" -eq 0 ]
+    [[ "$output" =~ "The following rows were skipped:" ]] || false
+    [[ "$output" =~ "Lines skipped: 1" ]] || false
     run dolt sql -r csv -q "SELECT COUNT(*) FROM products"
     [ "$status" -eq 0 ]
     [ "${lines[1]}" = "1" ]

@@ -789,9 +789,17 @@ func moveRows(
 				return err
 			}
 		} else {
-			sqlRow, err = NameAndTypeTransform(sqlRow, wr.RowOperationSchema(), rdSqlSch, options.nameMapper)
+			destSch := wr.RowOperationSchema()
+			sqlRow, err = NameAndTypeTransform(sqlRow, destSch, rdSqlSch, options.nameMapper)
 			if err != nil {
 				return err
+			}
+
+			if err := wr.ValidateStringColumns(sqlRow); err != nil {
+				if quit := badRowCb(sqlRow, rdSqlSch, options.destTableName, line, err); quit {
+					return err
+				}
+				continue
 			}
 
 			select {

@@ -223,6 +223,24 @@ func (s *SqlEngineTableWriter) WriteRows(ctx context.Context, inputChannel chan 
 	}
 }
 
+// ValidateStringColumns returns an error if any string column value in |row| would be
+// rejected by its SQL type in strict mode.
+func (s *SqlEngineTableWriter) ValidateStringColumns(row sql.Row) error {
+	for i, col := range s.rowOperationSchema.Schema {
+		if i >= len(row) || row[i] == nil {
+			continue
+		}
+		strType, ok := col.Type.(sql.StringType)
+		if !ok {
+			continue
+		}
+		if _, _, err := strType.Convert(s.sqlCtx, row[i]); err != nil {
+			return fmt.Errorf("incorrect value for column %q: %w", col.Name, err)
+		}
+	}
+	return nil
+}
+
 func (s *SqlEngineTableWriter) Commit(ctx context.Context) error {
 	_, iter, _, err := s.se.Query(s.sqlCtx, "COMMIT")
 	if err != nil {

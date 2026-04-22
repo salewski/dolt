@@ -1663,11 +1663,16 @@ DELIM
     [ "${lines[2]}" = "2,2" ]
 }
 
-@test "import-update-tables: user repro - import csv with invalid utf8 with --continue skips bad row" {
+@test "import-update-tables: import csv with invalid utf8 with --continue skips bad row" {
     # See https://github.com/dolthub/dolt/issues/10924
     dolt sql -q "CREATE TABLE item (id VARCHAR(10) NOT NULL, name VARCHAR(255), PRIMARY KEY (id));"
+    run dolt table import -u item `batshelper bad-utf8-item.csv`
+    [ "$status" -ne 0 ]
+    [[ "$output" =~ "incorrect value for column" ]] || false
     run dolt table import -u --continue item `batshelper bad-utf8-item.csv`
     [ "$status" -eq 0 ]
+    [[ "$output" =~ "The following rows were skipped:" ]] || false
+    [[ "$output" =~ "Lines skipped: 1" ]] || false
     run dolt sql -r csv -q "SELECT COUNT(*) FROM item"
     [ "$status" -eq 0 ]
     [ "${lines[1]}" = "1" ]
@@ -1675,6 +1680,81 @@ DELIM
     [ "$status" -eq 0 ]
     [ "${lines[1]}" = "ITEM1" ]
     run dolt sql -r csv -q "SELECT COUNT(*) FROM item WHERE id = 'ITEM2'"
+    [ "$status" -eq 0 ]
+    [ "${lines[1]}" = "0" ]
+}
+
+@test "import-update-tables: import csv with int overflow with --continue skips bad row" {
+    # See https://github.com/dolthub/dolt/issues/10924
+    dolt sql -q "CREATE TABLE t (id INT PRIMARY KEY, val INT);"
+    cat > int-overflow.csv <<'EOF'
+id,val
+1,9999999999
+2,42
+EOF
+    run dolt table import -u t int-overflow.csv
+    [ "$status" -ne 0 ]
+    run dolt table import -u --continue t int-overflow.csv
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "The following rows were skipped:" ]] || false
+    [[ "$output" =~ "Lines skipped: 1" ]] || false
+    run dolt sql -r csv -q "SELECT COUNT(*) FROM t"
+    [ "$status" -eq 0 ]
+    [ "${lines[1]}" = "1" ]
+    run dolt sql -r csv -q "SELECT id FROM t"
+    [ "$status" -eq 0 ]
+    [ "${lines[1]}" = "2" ]
+    run dolt sql -r csv -q "SELECT COUNT(*) FROM t WHERE id = 1"
+    [ "$status" -eq 0 ]
+    [ "${lines[1]}" = "0" ]
+}
+
+@test "import-update-tables: import csv with invalid date with --continue skips bad row" {
+    # See https://github.com/dolthub/dolt/issues/10924
+    dolt sql -q "CREATE TABLE t (id INT PRIMARY KEY, d DATE);"
+    cat > invalid-date.csv <<'EOF'
+id,d
+1,2023-13-45
+2,2023-01-15
+EOF
+    run dolt table import -u t invalid-date.csv
+    [ "$status" -ne 0 ]
+    run dolt table import -u --continue t invalid-date.csv
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "The following rows were skipped:" ]] || false
+    [[ "$output" =~ "Lines skipped: 1" ]] || false
+    run dolt sql -r csv -q "SELECT COUNT(*) FROM t"
+    [ "$status" -eq 0 ]
+    [ "${lines[1]}" = "1" ]
+    run dolt sql -r csv -q "SELECT id FROM t"
+    [ "$status" -eq 0 ]
+    [ "${lines[1]}" = "2" ]
+    run dolt sql -r csv -q "SELECT COUNT(*) FROM t WHERE id = 1"
+    [ "$status" -eq 0 ]
+    [ "${lines[1]}" = "0" ]
+}
+
+@test "import-update-tables: import csv with invalid enum value with --continue skips bad row" {
+    # See https://github.com/dolthub/dolt/issues/10924
+    dolt sql -q "CREATE TABLE t (id INT PRIMARY KEY, status ENUM('active', 'inactive'));"
+    cat > invalid-enum.csv <<'EOF'
+id,status
+1,unknown
+2,active
+EOF
+    run dolt table import -u t invalid-enum.csv
+    [ "$status" -ne 0 ]
+    run dolt table import -u --continue t invalid-enum.csv
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "The following rows were skipped:" ]] || false
+    [[ "$output" =~ "Lines skipped: 1" ]] || false
+    run dolt sql -r csv -q "SELECT COUNT(*) FROM t"
+    [ "$status" -eq 0 ]
+    [ "${lines[1]}" = "1" ]
+    run dolt sql -r csv -q "SELECT id FROM t"
+    [ "$status" -eq 0 ]
+    [ "${lines[1]}" = "2" ]
+    run dolt sql -r csv -q "SELECT COUNT(*) FROM t WHERE id = 1"
     [ "$status" -eq 0 ]
     [ "${lines[1]}" = "0" ]
 }
