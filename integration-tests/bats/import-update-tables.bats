@@ -1662,3 +1662,19 @@ DELIM
     [ "${lines[1]}" = "1,6" ]
     [ "${lines[2]}" = "2,2" ]
 }
+
+@test "import-update-tables: user repro - import csv with invalid utf8 with --continue skips bad row" {
+    # See https://github.com/dolthub/dolt/issues/10924
+    dolt sql -q "CREATE TABLE item (id VARCHAR(10) NOT NULL, name VARCHAR(255), PRIMARY KEY (id));"
+    run dolt table import -u --continue item `batshelper bad-utf8-item.csv`
+    [ "$status" -eq 0 ]
+    run dolt sql -r csv -q "SELECT COUNT(*) FROM item"
+    [ "$status" -eq 0 ]
+    [ "${lines[1]}" = "1" ]
+    run dolt sql -r csv -q "SELECT id FROM item"
+    [ "$status" -eq 0 ]
+    [ "${lines[1]}" = "ITEM1" ]
+    run dolt sql -r csv -q "SELECT COUNT(*) FROM item WHERE id = 'ITEM2'"
+    [ "$status" -eq 0 ]
+    [ "${lines[1]}" = "0" ]
+}

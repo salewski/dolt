@@ -460,6 +460,28 @@ DELIM
     diff compare.csv `batshelper bad-characters.csv`
 }
 
+@test "import-create-tables: import csv with invalid utf8 with --continue skips bad rows entirely" {
+    # See https://github.com/dolthub/dolt/issues/10924
+    cat <<SQL > varchar-sch.sql
+CREATE TABLE products (
+    id int NOT NULL,
+    name VARCHAR(255),
+    PRIMARY KEY (id)
+);
+SQL
+    run dolt table import -c -s varchar-sch.sql --continue products `batshelper bad-utf8-varchar.csv`
+    [ "$status" -eq 0 ]
+    run dolt sql -r csv -q "SELECT COUNT(*) FROM products"
+    [ "$status" -eq 0 ]
+    [ "${lines[1]}" = "1" ]
+    run dolt sql -r csv -q "SELECT id FROM products"
+    [ "$status" -eq 0 ]
+    [ "${lines[1]}" = "2" ]
+    run dolt sql -r csv -q "SELECT COUNT(*) FROM products WHERE id = 1"
+    [ "$status" -eq 0 ]
+    [ "${lines[1]}" = "0" ]
+}
+
 @test "import-create-tables: dolt diff on a newly created table" {
     dolt sql <<SQL
 CREATE TABLE test (
