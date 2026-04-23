@@ -223,19 +223,17 @@ func (s *SqlEngineTableWriter) WriteRows(ctx context.Context, inputChannel chan 
 	}
 }
 
-// ValidateStringColumns returns an error if any string column value in |row| would be
-// rejected by its SQL type in strict mode.
-func (s *SqlEngineTableWriter) ValidateStringColumns(row sql.Row) error {
+// ValidateColumns returns an error if any column value in |row| would be rejected
+// by its SQL type. Numeric overflow is detected via the ConvertInRange return value
+// since NumberType.Convert returns status codes rather than errors for out-of-range values.
+func (s *SqlEngineTableWriter) ValidateColumns(row sql.Row) error {
 	for i, col := range s.rowOperationSchema.Schema {
 		if i >= len(row) || row[i] == nil {
 			continue
 		}
-		strType, ok := col.Type.(sql.StringType)
-		if !ok {
-			continue
-		}
-		if _, _, err := strType.Convert(s.sqlCtx, row[i]); err != nil {
-			return fmt.Errorf("incorrect value for column %q: %w", col.Name, err)
+		_, inRange, err := col.Type.Convert(s.sqlCtx, row[i])
+		if err != nil || inRange != sql.InRange {
+			return fmt.Errorf("invalid value for column %q", col.Name)
 		}
 	}
 	return nil

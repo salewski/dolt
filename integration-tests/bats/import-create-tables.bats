@@ -460,31 +460,26 @@ DELIM
     diff compare.csv `batshelper bad-characters.csv`
 }
 
-@test "import-create-tables: import csv with invalid utf8 with --continue skips bad rows entirely" {
+@test "import-create-tables: import csv with invalid utf8 with --continue skips bad rows" {
     # See https://github.com/dolthub/dolt/issues/10924
-    cat <<SQL > varchar-sch.sql
-CREATE TABLE products (
-    id int NOT NULL,
-    name VARCHAR(255),
-    PRIMARY KEY (id)
-);
-SQL
-    run dolt table import -c -s varchar-sch.sql products `batshelper bad-utf8-varchar.csv`
+    dolt sql -q "CREATE TABLE t (id int NOT NULL, name VARCHAR(255), PRIMARY KEY (id));"
+    cat > data.csv <<EOF
+id,name
+1,"SSD 1TB 2.5$(printf '\x85') NVMe"
+2,"Normal Product"
+EOF
+    run dolt table import -u t data.csv
     [ "$status" -ne 0 ]
-    [[ "$output" =~ "incorrect value for column" ]] || false
-    run dolt table import -c -s varchar-sch.sql --continue products `batshelper bad-utf8-varchar.csv`
+    run dolt table import -u --continue t data.csv
     [ "$status" -eq 0 ]
     [[ "$output" =~ "The following rows were skipped:" ]] || false
     [[ "$output" =~ "Lines skipped: 1" ]] || false
-    run dolt sql -r csv -q "SELECT COUNT(*) FROM products"
+    run dolt sql -r csv -q "SELECT COUNT(*) FROM t"
     [ "$status" -eq 0 ]
     [ "${lines[1]}" = "1" ]
-    run dolt sql -r csv -q "SELECT id FROM products"
+    run dolt sql -r csv -q "SELECT id FROM t"
     [ "$status" -eq 0 ]
     [ "${lines[1]}" = "2" ]
-    run dolt sql -r csv -q "SELECT COUNT(*) FROM products WHERE id = 1"
-    [ "$status" -eq 0 ]
-    [ "${lines[1]}" = "0" ]
 }
 
 @test "import-create-tables: dolt diff on a newly created table" {

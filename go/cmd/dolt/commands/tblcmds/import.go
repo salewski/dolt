@@ -795,7 +795,7 @@ func moveRows(
 				return err
 			}
 
-			if err := wr.ValidateStringColumns(sqlRow); err != nil {
+			if err := wr.ValidateColumns(sqlRow); err != nil {
 				if quit := badRowCb(sqlRow, rdSqlSch, options.destTableName, line, err); quit {
 					return err
 				}
